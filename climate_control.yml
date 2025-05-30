@@ -1,8 +1,9 @@
 blueprint:
-  name: Climate Control - Multi-Zone Auto Heat/Cool (LED-Safe)
+  name: Climate Control – Multi-Zone Auto Heat/Cool (LED-Safe)
   description: >
-    Automatically controls multiple climate devices by switching to 'cool' or 'heat' mode based on the current temperature.
-    Avoids resending commands unnecessarily to prevent Midea AC LED from turning on.
+    Automatically controls multiple climate devices by switching to 'cool' or 'heat' mode 
+    based on the current temperature. Avoids resending commands unnecessarily to prevent 
+    Midea AC LED from turning on.
   domain: automation
   input:
     climate_entities:
@@ -25,7 +26,7 @@ blueprint:
         number:
           min: 10
           max: 30
-          unit_of_measurement: °C
+          unit_of_measurement: "°C"
     max_temperature:
       name: Maximum Temperature
       default: 25
@@ -33,7 +34,7 @@ blueprint:
         number:
           min: 15
           max: 35
-          unit_of_measurement: °C
+          unit_of_measurement: "°C"
     target_temperature:
       name: Target Temperature
       default: 22
@@ -41,7 +42,7 @@ blueprint:
         number:
           min: 10
           max: 35
-          unit_of_measurement: °C
+          unit_of_measurement: "°C"
 
 trigger:
   - platform: state
@@ -54,11 +55,12 @@ condition: []
 action:
   - variables:
       sensor_entity: !input temperature_sensor
+      climate_targets: !input climate_entities
       current_temp: "{{ states(sensor_entity) | float(0) }}"
       min_temp: !input min_temperature
       max_temp: !input max_temperature
       target_temp: !input target_temperature
-      climate_ids: "{{ expand(!input climate_entities) | map(attribute='entity_id') | list }}"
+      climate_ids: "{{ expand(climate_targets) | map(attribute='entity_id') | list }}"
 
   - repeat:
       for_each: "{{ climate_ids }}"
@@ -69,6 +71,7 @@ action:
             current_fan: "{{ state_attr(entity, 'fan_mode') }}"
             current_setpoint: "{{ state_attr(entity, 'temperature') | float(0) }}"
 
+        # Set HVAC mode only if needed
         - choose:
             - conditions: "{{ current_temp < min_temp and current_mode != 'heat' }}"
               sequence:
@@ -90,6 +93,7 @@ action:
                   target:
                     entity_id: "{{ entity }}"
 
+        # Set temperature and fan only if needed
         - choose:
             - conditions: "{{ current_temp < min_temp or current_temp > max_temp }}"
               sequence:
@@ -101,7 +105,6 @@ action:
                             temperature: "{{ target_temp }}"
                           target:
                             entity_id: "{{ entity }}"
-
                 - choose:
                     - conditions: "{{ current_fan != 'low' }}"
                       sequence:
