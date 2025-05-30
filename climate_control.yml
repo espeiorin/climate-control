@@ -1,14 +1,17 @@
 blueprint:
-  name: Climate Control - Auto Heat/Cool
+  name: Climate Control - Multi-Zone Auto Heat/Cool
   description: >
-    Automatically sets a climate device to 'cool' or 'heat' mode based on the temperature range.
+    Automatically controls multiple climate devices by switching to 'cool' or 'heat' mode based on the current temperature.
   domain: automation
   input:
-    climate_entity:
-      name: Climate Device
+    climate_entities:
+      name: Climate Devices
+      description: Select one or more climate devices (e.g., AC units).
       selector:
-        entity:
-          domain: climate
+        target:
+          entity:
+            domain: climate
+            multiple: true
     temperature_sensor:
       name: Temperature Sensor
       selector:
@@ -17,7 +20,7 @@ blueprint:
           device_class: temperature
     min_temperature:
       name: Minimum Temperature
-      description: If current temp is below this, switch to 'heat'.
+      description: If current temperature is below this, switch to 'heat'.
       default: 20
       selector:
         number:
@@ -26,7 +29,7 @@ blueprint:
           unit_of_measurement: °C
     max_temperature:
       name: Maximum Temperature
-      description: If current temp is above this, switch to 'cool'.
+      description: If current temperature is above this, switch to 'cool'.
       default: 25
       selector:
         number:
@@ -62,33 +65,28 @@ action:
       - conditions: "{{ current_temp < min_temp }}"
         sequence:
           - service: climate.set_hvac_mode
-            target:
-              entity_id: !input climate_entity
+            target: !input climate_entities
             data:
               hvac_mode: heat
           - service: climate.set_temperature
-            target:
-              entity_id: !input climate_entity
+            target: !input climate_entities
             data:
               temperature: "{{ target_temp }}"
 
       - conditions: "{{ current_temp > max_temp }}"
         sequence:
           - service: climate.set_hvac_mode
-            target:
-              entity_id: !input climate_entity
+            target: !input climate_entities
             data:
               hvac_mode: cool
           - service: climate.set_temperature
-            target:
-              entity_id: !input climate_entity
+            target: !input climate_entities
             data:
               temperature: "{{ target_temp }}"
-          
+
       - conditions: "{{ current_temp >= min_temp and current_temp <= max_temp }}"
         sequence:
           - service: climate.turn_off
-            target:
-              entity_id: !input climate_entity
+            target: !input climate_entities
 
 mode: single
