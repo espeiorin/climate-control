@@ -1,13 +1,13 @@
 blueprint:
-  name: Climate Control – Multi-Zone Auto Heat/Cool (LED-Safe)
+  name: Climate Control - Multi-Zone Auto Heat/Cool
   description: >
-    Automatically controls multiple climate devices by switching to 'cool' or 'heat' mode 
-    based on the current temperature. Prevents Midea AC LED from turning on unnecessarily
-    by avoiding redundant commands.
+    Automatically controls multiple climate devices by switching to 'cool' or 'heat' mode based on the current temperature.
+    Also sets the fan mode to 'low'.
   domain: automation
   input:
     climate_entities:
       name: Climate Devices
+      description: Select one or more climate devices (e.g., AC units).
       selector:
         target:
           entity:
@@ -20,28 +20,31 @@ blueprint:
           device_class: temperature
     min_temperature:
       name: Minimum Temperature
+      description: If current temperature is below this, switch to 'heat'.
       default: 20
       selector:
         number:
           min: 10
           max: 30
-          unit_of_measurement: "°C"
+          unit_of_measurement: °C
     max_temperature:
       name: Maximum Temperature
+      description: If current temperature is above this, switch to 'cool'.
       default: 25
       selector:
         number:
           min: 15
           max: 35
-          unit_of_measurement: "°C"
+          unit_of_measurement: °C
     target_temperature:
       name: Target Temperature
+      description: Setpoint to use when setting the climate device.
       default: 22
       selector:
         number:
           min: 10
           max: 35
-          unit_of_measurement: "°C"
+          unit_of_measurement: °C
 
 trigger:
   - platform: state
@@ -53,67 +56,46 @@ condition: []
 
 action:
   - variables:
-      sensor_entity: !input temperature_sensor
-      climate_targets: !input climate_entities
-      current_temp: "{{ states(sensor_entity) | float(0) }}"
+      temperature_sensor_entity: !input temperature_sensor
+      current_temp: "{{ states(temperature_sensor_entity) | float(0) }}"
       min_temp: !input min_temperature
       max_temp: !input max_temperature
       target_temp: !input target_temperature
-      climate_ids: >
-        {% set ids = climate_targets.entity_id if climate_targets is mapping and 'entity_id' in climate_targets else [] %}
-        {{ ids if ids is iterable else [ids] }}
 
-  - repeat:
-      for_each: "{{ climate_ids }}"
-      sequence:
-        - variables:
-            entity: "{{ repeat.item }}"
-            current_mode: "{{ state_attr(entity, 'hvac_mode') }}"
-            current_fan: "{{ state_attr(entity, 'fan_mode') }}"
-            current_setpoint: "{{ state_attr(entity, 'temperature') | float(0) }}"
+  - choose:
+      - conditions: "{{ current_temp < min_temp }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target: !input climate_entities
+            data:
+              hvac_mode: heat
+          - service: climate.set_temperature
+            target: !input climate_entities
+            data:
+              temperature: "{{ target_temp }}"
+          - service: climate.set_fan_mode
+            target: !input climate_entities
+            data:
+              fan_mode: "low"
 
-        # Set HVAC mode only if needed
-        - choose:
-            - conditions: "{{ current_temp < min_temp and current_mode != 'heat' }}"
-              sequence:
-                - service: climate.set_hvac_mode
-                  data:
-                    hvac_mode: heat
-                  target:
-                    entity_id: "{{ entity }}"
+      - conditions: "{{ current_temp > max_temp }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target: !input climate_entities
+            data:
+              hvac_mode: cool
+          - service: climate.set_temperature
+            target: !input climate_entities
+            data:
+              temperature: "{{ target_temp }}"
+          - service: climate.set_fan_mode
+            target: !input climate_entities
+            data:
+              fan_mode: "low"
 
-            - conditions: "{{ current_temp > max_temp and current_mode != 'cool' }}"
-              sequence:
-                - service: climate.set_hvac_mode
-                  data:
-                    hvac_mode: cool
-                  target:
-                    entity_id: "{{ entity }}"
-
-            - conditions: "{{ min_temp <= current_temp <= max_temp and current_mode != 'off' }}"
-              sequence:
-                - service: climate.turn_off
-                  target:
-                    entity_id: "{{ entity }}"
-
-        # Set temperature only if different
-        - choose:
-            - conditions: "{{ (current_temp < min_temp or current_temp > max_temp) and current_setpoint != target_temp }}"
-              sequence:
-                - service: climate.set_temperature
-                  data:
-                    temperature: "{{ target_temp }}"
-                  target:
-                    entity_id: "{{ entity }}"
-
-        # Set fan mode only if different
-        - choose:
-            - conditions: "{{ (current_temp < min_temp or current_temp > max_temp) and current_fan != 'low' }}"
-              sequence:
-                - service: climate.set_fan_mode
-                  data:
-                    fan_mode: "low"
-                  target:
-                    entity_id: "{{ entity }}"
+      - conditions: "{{ current_temp >= min_temp and current_temp <= max_temp }}"
+        sequence:
+          - service: climate.turn_off
+            target: !input climate_entities
 
 mode: single
