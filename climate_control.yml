@@ -55,7 +55,8 @@ condition: []
 
 action:
   - variables:
-      current_temp: "{{ states(temperature_sensor) | float(0) }}"
+      temperature_sensor_entity: !input temperature_sensor
+      current_temp: "{{ states(temperature_sensor_entity) | float(0) }}"
       min_temp: !input min_temperature
       max_temp: !input max_temperature
       target_temp: !input target_temperature
